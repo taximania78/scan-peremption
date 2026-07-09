@@ -1,0 +1,28 @@
+# To get started with Dependabot version updates, you'll need to specify which
+# package ecosystems to update and where the package manifests are located.
+# Please see the documentation for all configuration options:
+# https://docs.github.com/code-security/dependabot/dependabot-version-updates/configuration-options-for-the-dependabot.yml-file
+
+version: 2
+updates:
+  - package-ecosystem: "npm"
+    # Indiquez ici le dossier où se trouve package.json
+    directory: "/"
+    # Vérifie les mises à jour tous les jours ouvrés (lun→ven) à 9h, heure de Paris.
+    # (Dependabot ne tourne pas le week-end avec l'intervalle "daily".)
+    schedule:
+      interval: "daily"
+      time: "09:00"
+      timezone: "Europe/Paris"
+    # Limite le nombre de PR ouvertes en même temps pour ne pas être submergé
+    open-pull-requests-limit: 5
+    # Regroupe les mises à jour sûres (patch + minor) dans UNE seule PR par jour.
+    # Les mises à jour majeures (potentiellement cassantes) restent en PR séparées,
+    # pour qu'une major qui casse la CI ne bloque pas les correctifs sûrs.
+    groups:
+      dependances:
+        patterns:
+          - "*"
+        update-types:
+          - "minor"
+          - "patch"

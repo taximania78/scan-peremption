@@ -1,0 +1,19 @@
+services:
+  app:
+    container_name: peremption-scan
+    build:
+      context: .
+      dockerfile: Dockerfile
+      network: host
+    environment:
+      - NODE_ENV=production
+      - DATABASE_URL=file:./prisma/data/dev.db
+      - OPENROUTER_API_KEY=${OPENROUTER_API_KEY}
+    volumes:
+      - ./prisma/data:/app/prisma/data
+    restart: unless-stopped
+    networks:
+      - reseau-local
+networks:
+  reseau-local:
+    external: true
