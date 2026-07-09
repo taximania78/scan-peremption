@@ -26,3 +26,13 @@ updates:
         update-types:
           - "minor"
           - "patch"
+
+  # Les actions du workflow CI sont épinglées sur un SHA de commit (et non un tag
+  # mutable). Sans cet écosystème, ces SHA ne seraient jamais mis à jour.
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+      time: "09:00"
+      timezone: "Europe/Paris"
+    open-pull-requests-limit: 5
