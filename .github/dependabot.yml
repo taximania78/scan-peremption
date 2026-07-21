@@ -26,6 +26,14 @@ updates:
         update-types:
           - "minor"
           - "patch"
+    # better-sqlite3 est une dépendance "esclave" de @prisma/adapter-better-sqlite3,
+    # qui impose la ligne 12 (^12.6.0). Un bump MAJEUR isolé (ex: 12→13) casse le
+    # build Docker : npm installe deux copies natives et recompile l'imbriquée sans
+    # prebuild-install (cf. incident PR #12). On bloque donc les majors de
+    # better-sqlite3 ; elles ne seront remontées que consciemment, avec l'adaptateur.
+    ignore:
+      - dependency-name: "better-sqlite3"
+        update-types: ["version-update:semver-major"]
 
   # Les actions du workflow CI sont épinglées sur un SHA de commit (et non un tag
   # mutable). Sans cet écosystème, ces SHA ne seraient jamais mis à jour.
