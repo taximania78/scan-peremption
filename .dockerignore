@@ -1,0 +1,39 @@
+# Dépendances installées sur le host (binaires macOS) — ne doivent jamais entrer dans l'image
+node_modules
+
+# Sorties de build & caches
+.next
+out
+build
+coverage
+*.tsbuildinfo
+next-env.d.ts
+
+# Client Prisma généré (régénéré dans le builder via `npx prisma generate`)
+src/generated
+
+# Bases locales & volume de données
+prisma/data
+**/*.db
+
+# Secrets & fichiers d'env locaux
+.env*
+!.env.example
+
+# VCS / CI / outillage local
+.git
+.github
+.gstack
+**/.DS_Store
+
+# Fichiers Docker eux-mêmes
+Dockerfile
+docker-compose.yml
+docker-compose.override.yml
+.dockerignore
+
+# Fichiers dev inutiles au build
+dev-https.js
+README.md
+SECURITY.md
+LICENSE
