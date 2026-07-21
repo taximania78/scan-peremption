@@ -44,7 +44,7 @@ COPY --from=builder /app/prisma.config.ts ./
 
 # Install prisma CLI and its dependencies for migrations
 # We use npm install to ensure all transitive dependencies (like valibot, dotenv) are present
-RUN npm install prisma@7.4.0 @prisma/client@7.4.0 --no-save && \
+RUN npm install prisma@7.9.0 @prisma/client@7.9.0 --no-save && \
     npm rebuild better-sqlite3 && \
     chown -R nextjs:nodejs /app/node_modules
 
