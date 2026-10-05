@@ -37,12 +37,12 @@ describe("GET /api/products/openfoodfacts/[barcode]", () => {
     expect(await res.json()).toEqual({
       name: "Nutella",
       barcode: "3017620422003",
-      image_url: "https://images.openfoodfacts.org/x.jpg",
     });
 
     // Conformité: v3 + User-Agent custom
     const [url, opts] = fetchMock.mock.calls[0];
     expect(url).toContain("/api/v3/product/3017620422003");
+    expect(url).not.toContain("image_front_url");
     expect((opts as RequestInit).headers).toHaveProperty("User-Agent");
   });
 

@@ -1,19 +1,25 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 
-vi.mock("@/lib/prisma", () => ({
-  prisma: {
+vi.mock("@/lib/prisma", () => {
+  const prisma = {
     product: {
       create: vi.fn(),
       findMany: vi.fn(),
     },
-  },
-}));
+    knownProduct: {
+      upsert: vi.fn(),
+    },
+    $transaction: vi.fn((fn: (tx: unknown) => unknown) => fn(prisma)),
+  };
+  return { prisma };
+});
 
 import { POST, GET } from "./route";
 import { prisma } from "@/lib/prisma";
 
 const createMock = prisma.product.create as ReturnType<typeof vi.fn>;
 const findManyMock = prisma.product.findMany as ReturnType<typeof vi.fn>;
+const upsertMock = prisma.knownProduct.upsert as ReturnType<typeof vi.fn>;
 
 function post(body: unknown) {
   return POST(
@@ -61,6 +67,36 @@ describe("POST /api/products", () => {
 
   it("retourne 500 sur erreur inattendue", async () => {
     createMock.mockRejectedValue(new Error("boom"));
+    const res = await post({
+      barcode: "1",
+      productName: "Lait",
+      expirationDate: "2026-07-01",
+    });
+    expect(res.status).toBe(500);
+  });
+  it("mémorise le nom du code-barres", async () => {
+    createMock.mockResolvedValue({ id: "uuid", barcode: "1", productName: "Lait" });
+    await post({ barcode: "1", productName: "Lait", expirationDate: "2026-07-01" });
+    expect(upsertMock).toHaveBeenCalledWith({
+      where: { barcode: "1" },
+      create: { barcode: "1", name: "Lait" },
+      update: { name: "Lait" },
+    });
+  });
+
+  it("ne mémorise pas un ajout manuel sans code-barres", async () => {
+    createMock.mockResolvedValue({ id: "uuid" });
+    await post({
+      barcode: "MANUAL-1730000000000",
+      productName: "Soupe maison",
+      expirationDate: "2026-07-01",
+    });
+    expect(upsertMock).not.toHaveBeenCalled();
+  });
+
+  it("retourne 500 si la mémorisation échoue", async () => {
+    createMock.mockResolvedValue({ id: "uuid" });
+    upsertMock.mockRejectedValueOnce(new Error("boom"));
     const res = await post({
       barcode: "1",
       productName: "Lait",

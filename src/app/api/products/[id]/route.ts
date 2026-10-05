@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
+import { rememberName } from "@/lib/known-products";
 
 export async function DELETE(
   _request: NextRequest,
@@ -43,12 +44,28 @@ export async function PATCH(
       );
     }
 
-    const product = await prisma.product.update({
-      where: { id },
-      data: {
-        productName,
-        expirationDate: expirationDate ? new Date(expirationDate) : undefined,
-      },
+    const product = await prisma.$transaction(async (tx) => {
+      // La modale renvoie toujours le nom : ne mémoriser que s'il a vraiment changé,
+      // sinon un simple changement de date écraserait un nom mémorisé plus récent.
+      const before =
+        typeof productName === "string"
+          ? await tx.product.findUnique({ where: { id }, select: { productName: true } })
+          : null;
+      const updated = await tx.product.update({
+        where: { id },
+        data: {
+          productName,
+          expirationDate: expirationDate ? new Date(expirationDate) : undefined,
+        },
+      });
+      if (
+        typeof productName === "string" &&
+        before &&
+        productName.trim() !== before.productName.trim()
+      ) {
+        await rememberName(tx, updated.barcode, productName);
+      }
+      return updated;
     });
 
     return NextResponse.json(product);
