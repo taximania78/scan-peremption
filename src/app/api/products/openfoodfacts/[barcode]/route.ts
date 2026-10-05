@@ -16,7 +16,7 @@ export async function GET(
     const response = await fetch(
       `https://world.openfoodfacts.org/api/v3/product/${encodeURIComponent(
         barcode
-      )}?fields=product_name,product_name_fr,code,image_front_url`,
+      )}?fields=product_name,product_name_fr,code`,
       {
         headers: {
           "User-Agent": userAgent,
@@ -46,7 +46,6 @@ export async function GET(
         data.product.product_name ||
         "Nom inconnu",
       barcode: data.product.code,
-      image_url: data.product.image_front_url || null,
     };
 
     return NextResponse.json(product);

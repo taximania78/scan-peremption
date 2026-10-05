@@ -1,8 +1,16 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import Image from "next/image";
 import { BarcodeScanner } from "@/components/BarcodeScanner";
+import {
+  type ScannedProduct,
+  fromMemory,
+  fromOpenFoodFacts,
+  editName,
+  applyImprovedName,
+  nameSourceLabel,
+  canSaveName,
+} from "@/lib/scanned-product";
 import { format, differenceInCalendarDays } from "date-fns";
 import { fr } from "date-fns/locale";
 
@@ -34,14 +42,8 @@ interface Product {
   createdAt: string;
 }
 
-interface OpenFoodProduct {
-  name: string;
-  barcode: string;
-  image_url: string | null;
-}
-
 export default function Home() {
-  const [scannedProduct, setScannedProduct] = useState<OpenFoodProduct | null>(null);
+  const [scannedProduct, setScannedProduct] = useState<ScannedProduct | null>(null);
   const [expirationDate, setExpirationDate] = useState("");
   const [products, setProducts] = useState<Product[]>([]);
   const [error, setError] = useState<string | null>(null);
@@ -74,6 +76,43 @@ export default function Home() {
     }
   };
 
+  const fetchKnownName = async (barcode: string): Promise<string | null> => {
+    try {
+      const response = await fetch(`/api/known-products/${encodeURIComponent(barcode)}`);
+      if (response.status === 404) return null;
+      if (!response.ok) throw new Error(`HTTP ${response.status}`);
+      const data = await response.json();
+      return typeof data.name === "string" ? data.name : null;
+    } catch (err) {
+      // La mémoire est un raccourci : en cas de panne on retombe sur OFF + LLM.
+      console.error("Failed to read known product name", err);
+      return null;
+    }
+  };
+
+  const loadFromOpenFoodFacts = async (barcode: string, isRetry: boolean) => {
+    try {
+      const response = await fetch(`/api/products/openfoodfacts/${barcode}`);
+      const data = await response.json();
+
+      if (!response.ok) {
+        if (response.status === 404 && !isRetry) {
+          setManualForm({ productName: "", expirationDate: "", barcode });
+          setIsManualAdding(true);
+          setError(null);
+        } else {
+          setError(data.error || "Produit non trouvé");
+        }
+        return;
+      }
+
+      setScannedProduct(fromOpenFoodFacts(barcode, data.name));
+      improveProductName(data.name, barcode);
+    } catch {
+      setError("Erreur lors de la récupération du produit");
+    }
+  };
+
   const handleScan = async (barcode: string) => {
     setLoading(true);
     setError(null);
@@ -81,32 +120,34 @@ export default function Home() {
     setIsScanning(false); // Close scanner after scan
 
     try {
-      const response = await fetch(`/api/products/openfoodfacts/${barcode}`);
-      const data = await response.json();
-
-      if (!response.ok) {
-        if (response.status === 404) {
-           setManualForm({ productName: "", expirationDate: "", barcode });
-           setIsManualAdding(true);
-           setError(null);
-        } else {
-           setError(data.error || "Produit non trouvé");
-        }
+      const knownName = await fetchKnownName(barcode);
+      if (knownName) {
+        setScannedProduct(fromMemory(barcode, knownName));
+        setExpirationDate("");
         return;
       }
 
-      setScannedProduct(data);
       setExpirationDate("");
+      await loadFromOpenFoodFacts(barcode, false);
+    } finally {
+      setLoading(false);
+    }
+  };
 
-      improveProductName(data.name, barcode);
-    } catch {
-      setError("Erreur lors de la récupération du produit");
+  const handleRetryLookup = async () => {
+    if (!scannedProduct) return;
+
+    setLoading(true);
+    setError(null);
+    try {
+      await loadFromOpenFoodFacts(scannedProduct.barcode, true);
     } finally {
       setLoading(false);
     }
   };
 
   const improveProductName = async (originalName: string, barcode: string) => {
+    let improvedName: string | null = null;
     try {
       const response = await fetch("/api/ai/improve-product-name", {
         method: "POST",
@@ -116,23 +157,17 @@ export default function Home() {
 
       if (response.ok) {
         const data = await response.json();
-        if (data.improvedName && data.improvedName !== originalName) {
-          setScannedProduct((prev) => {
-            if (prev && prev.barcode === barcode) {
-              return { ...prev, name: data.improvedName };
-            }
-            return prev;
-          });
-        }
+        if (typeof data.improvedName === "string") improvedName = data.improvedName;
       }
     } catch (err) {
       console.error("Failed to improve product name", err);
     }
+    setScannedProduct((prev) => applyImprovedName(prev, barcode, improvedName));
   };
 
   const handleSaveProduct = async (returnToScan: boolean = false) => {
-    if (!scannedProduct || !expirationDate) {
-      setError("Veuillez scanner un produit et sélectionner une date");
+    if (!scannedProduct || !expirationDate || !canSaveName(scannedProduct)) {
+      setError("Veuillez saisir un nom et sélectionner une date");
       return;
     }
 
@@ -145,7 +180,7 @@ export default function Home() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           barcode: scannedProduct.barcode,
-          productName: scannedProduct.name,
+          productName: scannedProduct.name.trim(),
           expirationDate,
         }),
       });
@@ -429,22 +464,29 @@ export default function Home() {
               <ArrowLeft className="w-4 h-4" /> Retour
             </button>
             
-            <div className="bg-neo-pink border-2 border-black shadow-neo rounded-[1.5rem] p-4 text-center">
-              {scannedProduct.image_url ? (
-                <Image
-                  src={scannedProduct.image_url}
-                  alt={scannedProduct.name}
-                  width={128}
-                  height={128}
-                  className="w-32 h-32 object-contain mx-auto border-2 border-black rounded-xl bg-white mb-4"
-                />
-              ) : (
-                <div className="w-32 h-32 mx-auto border-2 border-black rounded-xl bg-white mb-4 flex items-center justify-center">
-                   <span className="text-4xl">🍎</span>
-                </div>
-              )}
-              <h2 className="text-2xl font-black uppercase break-words">{scannedProduct.name}</h2>
-              <p className="font-mono text-sm mt-1">{scannedProduct.barcode}</p>
+            <div className="bg-neo-pink border-2 border-black shadow-neo rounded-[1.5rem] p-4 text-center space-y-3">
+              <label htmlFor="scanned-product-name" className="sr-only">Nom du produit</label>
+              <input
+                id="scanned-product-name"
+                type="text"
+                value={scannedProduct.name}
+                onChange={(e) => setScannedProduct((prev) => editName(prev, e.target.value))}
+                className="w-full block box-border bg-white border-2 border-black rounded-xl px-3 py-2 text-2xl font-black uppercase text-center focus:outline-none focus:ring-4 focus:ring-neo-yellow/50"
+              />
+              <div className="flex items-center justify-between gap-2">
+                <span className="text-xs font-bold uppercase tracking-widest">
+                  {nameSourceLabel(scannedProduct)}
+                </span>
+                <button
+                  type="button"
+                  onClick={handleRetryLookup}
+                  disabled={loading || scannedProduct.improving}
+                  className="bg-white border-2 border-black shadow-neo hover:shadow-none hover:translate-x-[2px] hover:translate-y-[2px] disabled:opacity-50 disabled:cursor-not-allowed font-bold px-3 py-1 rounded-xl text-sm transition-all"
+                >
+                  ↻ Relancer
+                </button>
+              </div>
+              <p className="font-mono text-sm">{scannedProduct.barcode}</p>
             </div>
 
             <div className="bg-white border-2 border-black shadow-neo rounded-xl p-4 space-y-4">
@@ -461,7 +503,7 @@ export default function Home() {
 
               <button
                 onClick={() => handleSaveProduct(true)}
-                disabled={loading || !expirationDate}
+                disabled={loading || !expirationDate || !canSaveName(scannedProduct)}
                 className="w-full bg-white border-2 border-black shadow-neo hover:shadow-none hover:translate-x-[2px] hover:translate-y-[2px] disabled:opacity-50 disabled:cursor-not-allowed text-black font-black py-4 px-4 rounded-xl text-lg uppercase transition-all flex justify-center items-center gap-2 mb-3"
               >
                 {loading ? "..." : (
@@ -473,7 +515,7 @@ export default function Home() {
 
               <button
                 onClick={() => handleSaveProduct(false)}
-                disabled={loading || !expirationDate}
+                disabled={loading || !expirationDate || !canSaveName(scannedProduct)}
                 className="w-full bg-neo-yellow border-2 border-black shadow-neo hover:shadow-none hover:translate-x-[2px] hover:translate-y-[2px] disabled:opacity-50 disabled:cursor-not-allowed text-black font-black py-4 px-4 rounded-xl text-lg uppercase transition-all flex justify-center items-center gap-2"
               >
                 {loading ? "..." : (
