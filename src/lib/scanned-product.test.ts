@@ -73,6 +73,11 @@ describe("applyImprovedName", () => {
   it("ne fait rien sans produit", () => {
     expect(applyImprovedName(null, "123", "Nutella")).toBeNull();
   });
+
+  it("ignore une réponse tardive d'un scan précédent quand le nom vient de la mémoire", () => {
+    const remembered = fromMemory("123", "Lait entier");
+    expect(applyImprovedName(remembered, "123", "Lait UHT")).toBe(remembered);
+  });
 });
 
 describe("nameSourceLabel", () => {

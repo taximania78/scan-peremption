@@ -5,6 +5,7 @@ vi.mock("@/lib/prisma", () => {
     product: {
       delete: vi.fn(),
       update: vi.fn(),
+      findUnique: vi.fn(),
     },
     knownProduct: {
       upsert: vi.fn(),
@@ -20,6 +21,7 @@ import { prisma } from "@/lib/prisma";
 const deleteMock = prisma.product.delete as ReturnType<typeof vi.fn>;
 const updateMock = prisma.product.update as ReturnType<typeof vi.fn>;
 const upsertMock = prisma.knownProduct.upsert as ReturnType<typeof vi.fn>;
+const findUniqueMock = prisma.product.findUnique as ReturnType<typeof vi.fn>;
 
 function patch(id: string, body: unknown) {
   return PATCH(
@@ -78,6 +80,7 @@ describe("PATCH /api/products/[id]", () => {
   });
 
   it("mémorise le nouveau nom pour le code-barres du produit", async () => {
+    findUniqueMock.mockResolvedValue({ productName: "Lait" });
     updateMock.mockResolvedValue({ id: "1", barcode: "123", productName: "Lait demi-écrémé" });
     await patch("1", { productName: "Lait demi-écrémé" });
     expect(upsertMock).toHaveBeenCalledWith({
@@ -90,6 +93,14 @@ describe("PATCH /api/products/[id]", () => {
   it("ne touche pas la mémoire quand seule la date change", async () => {
     updateMock.mockResolvedValue({ id: "1", barcode: "123", productName: "Lait" });
     const res = await patch("1", { expirationDate: "2026-08-01" });
+    expect(res.status).toBe(200);
+    expect(upsertMock).not.toHaveBeenCalled();
+  });
+
+  it("ne touche pas la mémoire quand la modale renvoie le nom inchangé avec une nouvelle date", async () => {
+    findUniqueMock.mockResolvedValue({ productName: "Lait" });
+    updateMock.mockResolvedValue({ id: "1", barcode: "123", productName: "Lait" });
+    const res = await patch("1", { productName: "Lait", expirationDate: "2026-08-01" });
     expect(res.status).toBe(200);
     expect(upsertMock).not.toHaveBeenCalled();
   });

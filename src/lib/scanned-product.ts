@@ -28,7 +28,9 @@ export function applyImprovedName(
   barcode: string,
   improvedName: string | null
 ): ScannedProduct | null {
-  if (!prev || prev.barcode !== barcode) return prev;
+  // `improving` faux : aucune réponse attendue (ex. rescan servi par la mémoire
+  // pendant qu'un appel LLM d'un scan précédent du même code est encore en vol).
+  if (!prev || prev.barcode !== barcode || !prev.improving) return prev;
 
   const done = { ...prev, improving: false };
   const trimmed = improvedName?.trim();
