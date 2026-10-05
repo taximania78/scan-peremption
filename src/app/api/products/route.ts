@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
+import { rememberName } from "@/lib/known-products";
 
 export async function POST(request: NextRequest) {
   try {
@@ -13,12 +14,16 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const product = await prisma.product.create({
-      data: {
-        barcode,
-        productName,
-        expirationDate: new Date(expirationDate),
-      },
+    const product = await prisma.$transaction(async (tx) => {
+      const created = await tx.product.create({
+        data: {
+          barcode,
+          productName,
+          expirationDate: new Date(expirationDate),
+        },
+      });
+      await rememberName(tx, barcode, productName);
+      return created;
     });
 
     return NextResponse.json(product, { status: 201 });

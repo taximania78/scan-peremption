@@ -1,19 +1,25 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 
-vi.mock("@/lib/prisma", () => ({
-  prisma: {
+vi.mock("@/lib/prisma", () => {
+  const prisma = {
     product: {
       delete: vi.fn(),
       update: vi.fn(),
     },
-  },
-}));
+    knownProduct: {
+      upsert: vi.fn(),
+    },
+    $transaction: vi.fn((fn: (tx: unknown) => unknown) => fn(prisma)),
+  };
+  return { prisma };
+});
 
 import { DELETE, PATCH } from "./route";
 import { prisma } from "@/lib/prisma";
 
 const deleteMock = prisma.product.delete as ReturnType<typeof vi.fn>;
 const updateMock = prisma.product.update as ReturnType<typeof vi.fn>;
+const upsertMock = prisma.knownProduct.upsert as ReturnType<typeof vi.fn>;
 
 function patch(id: string, body: unknown) {
   return PATCH(
@@ -69,5 +75,22 @@ describe("PATCH /api/products/[id]", () => {
     updateMock.mockRejectedValue({ code: "P2025" });
     const res = await patch("404", { productName: "x" });
     expect(res.status).toBe(404);
+  });
+
+  it("mémorise le nouveau nom pour le code-barres du produit", async () => {
+    updateMock.mockResolvedValue({ id: "1", barcode: "123", productName: "Lait demi-écrémé" });
+    await patch("1", { productName: "Lait demi-écrémé" });
+    expect(upsertMock).toHaveBeenCalledWith({
+      where: { barcode: "123" },
+      create: { barcode: "123", name: "Lait demi-écrémé" },
+      update: { name: "Lait demi-écrémé" },
+    });
+  });
+
+  it("ne touche pas la mémoire quand seule la date change", async () => {
+    updateMock.mockResolvedValue({ id: "1", barcode: "123", productName: "Lait" });
+    const res = await patch("1", { expirationDate: "2026-08-01" });
+    expect(res.status).toBe(200);
+    expect(upsertMock).not.toHaveBeenCalled();
   });
 });
