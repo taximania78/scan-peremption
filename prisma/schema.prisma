@@ -17,3 +17,9 @@ model Product {
   expirationDate DateTime
   createdAt      DateTime @default(now())
 }
+
+model KnownProduct {
+  barcode   String   @id
+  name      String
+  updatedAt DateTime @updatedAt
+}
