@@ -16,13 +16,20 @@ export async function GET() {
       select: {
         id: true,
         productName: true,
+        expirationDate: true,
       },
       orderBy: {
         expirationDate: "asc",
       },
     });
 
-    return NextResponse.json(expiringProducts);
+    // Dates stockées à minuit UTC (saisie <input type="date">) : la partie date de l'ISO est la date saisie.
+    return NextResponse.json(
+      expiringProducts.map((product) => ({
+        ...product,
+        expirationDate: product.expirationDate.toISOString().slice(0, 10),
+      }))
+    );
   } catch (error) {
     console.error("Error fetching expiring products:", error);
     return NextResponse.json(

@@ -16,7 +16,9 @@ beforeEach(() => {
 
 describe("GET /api/products/expiring-soon", () => {
   it("ne sélectionne que les produits expirant dans <= 3 jours", async () => {
-    findManyMock.mockResolvedValue([{ id: "1", productName: "Yaourt" }]);
+    findManyMock.mockResolvedValue([
+      { id: "1", productName: "Yaourt", expirationDate: new Date("2026-10-09") },
+    ]);
     const res = await GET();
     expect(res.status).toBe(200);
 
@@ -27,6 +29,17 @@ describe("GET /api/products/expiring-soon", () => {
     const inThreeDays = new Date();
     inThreeDays.setDate(inThreeDays.getDate() + 3);
     expect(Math.abs(lte.getTime() - inThreeDays.getTime())).toBeLessThan(60_000);
+  });
+
+  it("renvoie la date d'expiration au format YYYY-MM-DD", async () => {
+    findManyMock.mockResolvedValue([
+      { id: "1", productName: "Yaourt", expirationDate: new Date("2026-10-09") },
+    ]);
+    const res = await GET();
+    expect(await res.json()).toEqual([
+      { id: "1", productName: "Yaourt", expirationDate: "2026-10-09" },
+    ]);
+    expect(findManyMock.mock.calls[0][0].select).toHaveProperty("expirationDate", true);
   });
 
   it("retourne 500 en cas d'erreur DB", async () => {
