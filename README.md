@@ -137,7 +137,7 @@ Supprime un produit par son ID.
 Liste allégée des produits (id, nom, date de péremption).
 
 ### GET /api/products/expiring-soon
-Produits expirant dans les 3 prochains jours.
+Produits expirant dans les 3 prochains jours (déjà expirés inclus) : `[{ id, productName, expirationDate }]`, avec `expirationDate` au format `YYYY-MM-DD`.
 
 ### GET /api/products/openfoodfacts/[barcode]
 Récupère les informations d'un produit depuis l'API Open Food Facts (v3).
