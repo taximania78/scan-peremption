@@ -59,22 +59,24 @@ export default function Home() {
   const [isManualAdding, setIsManualAdding] = useState(false);
   const [manualForm, setManualForm] = useState({ productName: "", expirationDate: "", barcode: "" });
 
-  useEffect(() => {
-    fetchProducts();
-  }, []);
-
-  const fetchProducts = async () => {
+  const loadProducts = async (): Promise<Product[]> => {
     try {
       const response = await fetch("/api/products");
       if (!response.ok) throw new Error("Failed to fetch");
-      const data = await response.json();
-      setProducts(data);
+      return await response.json();
     } catch (error) {
       console.error("Error fetching products:", error);
-      // Optionally set an empty array or handle error state
-      setProducts([]); 
+      return [];
     }
   };
+
+  const fetchProducts = async () => {
+    setProducts(await loadProducts());
+  };
+
+  useEffect(() => {
+    loadProducts().then(setProducts);
+  }, []);
 
   const fetchKnownName = async (barcode: string): Promise<string | null> => {
     try {
