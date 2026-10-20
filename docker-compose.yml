@@ -4,7 +4,6 @@ services:
     build:
       context: .
       dockerfile: Dockerfile
-      network: host
     environment:
       - NODE_ENV=production
       - DATABASE_URL=file:./prisma/data/dev.db
